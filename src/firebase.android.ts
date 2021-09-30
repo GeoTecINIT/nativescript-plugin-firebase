@@ -577,12 +577,7 @@ firebase.init = arg => {
     };
 
     try {
-      if (Application.android.startActivity) {
-        runInit();
-      } else {
-        // if this is called before application.start() wait for the event to fire
-        Application.on(Application.launchEvent, runInit);
-      }
+      runInit();
     } catch (ex) {
       console.log("Error in firebase.init: " + ex);
       reject(ex);
