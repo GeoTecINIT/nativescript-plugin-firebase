@@ -945,52 +945,67 @@ var copyPlist = function(copyPlistOpts) {
 function writeGoogleServiceGradleHook(result) {
   try {
     var scriptContent =
-        `var path = require("path");
+`var path = require("path");
 var fs = require("fs");
 
 module.exports = function($logger, $projectData) {
+    let buildGradleContent;
+
+    function patchNode(node, check, content = check)
+    {
+        const originalDepNode = buildGradleContent.match(
+            new RegExp(node + " {[\\\\s\\\\S]*?}", "gi")
+        ).shift();
+
+        if (!originalDepNode || originalDepNode.indexOf(check) > 0) {
+            return;
+        }
+
+        const endNode = originalDepNode.indexOf("}", 0);
+        const modDepNode = originalDepNode.substring(0, endNode - 1)
+            +  '\t    ' + content + '\\n'
+            + originalDepNode.substring(endNode - 1);
+
+        buildGradleContent = buildGradleContent.replace(
+            originalDepNode,
+            modDepNode
+        );
+    }
 
     return new Promise(function(resolve, reject) {
         $logger.info("Configure firebase");
         let projectBuildGradlePath = path.join($projectData.platformsDir, "android", "build.gradle");
+
         if (fs.existsSync(projectBuildGradlePath)) {
-            let buildGradleContent = fs.readFileSync(projectBuildGradlePath).toString();
+            buildGradleContent = fs.readFileSync(projectBuildGradlePath).toString();
 
-            if (buildGradleContent.indexOf(" google()\\n") === -1) {
-                let repositoriesNode = buildGradleContent.indexOf("repositories", 0);
-                if (repositoriesNode > -1) {
-                    repositoriesNode = buildGradleContent.indexOf("}", repositoriesNode);
-                    buildGradleContent = buildGradleContent.substr(0, repositoriesNode - 1) + '\\t\\tgoogle()\\n' + buildGradleContent.substr(repositoriesNode - 1);
-                }
+            patchNode(
+                "repositories",
+                "google()"
+            );
 
-            }
-            
-            if (buildGradleContent.indexOf("https://dl.bintray.com/android/android-tools") === -1) {
-                let repositoriesNode = buildGradleContent.indexOf("repositories", 0);
-                if (repositoriesNode > -1) {
-                    repositoriesNode = buildGradleContent.indexOf("}", repositoriesNode);
-                    buildGradleContent = buildGradleContent.substr(0, repositoriesNode - 1) + '\\t\\tmaven { url "https://dl.bintray.com/android/android-tools" }\\n' + buildGradleContent.substr(repositoriesNode - 1);
-                }
-            }
-            
-            if (buildGradleContent.indexOf("com.google.firebase:firebase-crashlytics-gradle") === -1) {
-              let dependenciesNode = buildGradleContent.indexOf("dependencies", 0);
-              if (dependenciesNode > -1) {
-                  dependenciesNode = buildGradleContent.indexOf("}", dependenciesNode);
-                  buildGradleContent = buildGradleContent.substr(0, dependenciesNode - 1) + '	    classpath "com.google.firebase:firebase-crashlytics-gradle:2.3.0"\\n' + buildGradleContent.substr(dependenciesNode - 1);
-              }
-            }
+            patchNode(
+                "repositories",
+                "https://dl.bintray.com/android/android-tools",
+                'maven { url "https://dl.bintray.com/android/android-tools" }'
+            );
 
-            let gradlePattern = /classpath ('|")com\\.android\\.tools\\.build:gradle:\\d+\\.\\d+\\.\\d+('|")/;
-            let googleServicesPattern = /classpath ('|")com\\.google\\.gms:google-services:\\d+\\.\\d+\\.\\d+('|")/;
-            let latestGoogleServicesPlugin = 'classpath "com.google.gms:google-services:4.3.4"';
-            if (googleServicesPattern.test(buildGradleContent)) {
-                buildGradleContent = buildGradleContent.replace(googleServicesPattern, latestGoogleServicesPlugin);
-            } else {
-                buildGradleContent = buildGradleContent.replace(gradlePattern, function (match) {
-                    return match + '\\n        ' + latestGoogleServicesPlugin;
-                });
-            }
+            patchNode(
+                "dependencies",
+                "com.google.firebase:firebase-crashlytics-gradle",
+                'classpath "com.google.firebase:firebase-crashlytics-gradle:2.3.0"'
+            );
+
+            // Remove maybe old google services
+            buildGradleContent = buildGradleContent.replace(
+                /classpath ('|")com\\.google\\.gms:google-services:\\d+\\.\\d+\\.\\d+('|")/, ''
+            );
+
+            patchNode(
+                "dependencies",
+                "com.google.gms:google-services",
+                'classpath "com.google.gms:google-services:4.3.4"'
+            );
 
             fs.writeFileSync(projectBuildGradlePath, buildGradleContent);
         }
@@ -999,7 +1014,10 @@ module.exports = function($logger, $projectData) {
         if (fs.existsSync(projectAppBuildGradlePath)) {
           let appBuildGradleContent = fs.readFileSync(projectAppBuildGradlePath).toString();
           if (appBuildGradleContent.indexOf("buildMetadata.finalizedBy(copyMetadata)") === -1) {
-            appBuildGradleContent = appBuildGradleContent.replace("ensureMetadataOutDir.finalizedBy(buildMetadata)", "ensureMetadataOutDir.finalizedBy(buildMetadata)\\n\\t\\tbuildMetadata.finalizedBy(copyMetadata)");
+            appBuildGradleContent = appBuildGradleContent.replace(
+                "ensureMetadataOutDir.finalizedBy(buildMetadata)",
+                "ensureMetadataOutDir.finalizedBy(buildMetadata)\\n\\t\\tbuildMetadata.finalizedBy(copyMetadata)"
+            );
             appBuildGradleContent += \`
 task copyMetadata {
   doFirst {
