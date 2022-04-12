@@ -3,12 +3,16 @@
 
   <!-- for Messaging -->
   <application>
-    <service android:name=".MyFirebaseMessagingService">
+    <service
+        android:name=".MyFirebaseMessagingService"
+        android:exported="true">
       <intent-filter>
         <action android:name="com.google.firebase.MESSAGING_EVENT"/>
       </intent-filter>
     </service>
-    <service android:name=".MyFirebaseInstanceIDService">
+    <service
+        android:name=".MyFirebaseInstanceIDService"
+        android:exported="true">
       <intent-filter>
         <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
       </intent-filter>
